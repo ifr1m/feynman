@@ -101,6 +101,7 @@ export function resolvePiPaths(appRoot: string) {
 			? packageLocalTsxLoaderPath
 			: workspaceTsxLoaderPath,
 		researchToolsPath: resolve(appRoot, "extensions", "research-tools.ts"),
+		webExtensionPath: resolve(appRoot, "extensions", "web", "index.ts"),
 		promptTemplatePath: resolve(appRoot, "prompts"),
 		systemPromptPath: resolve(appRoot, ".feynman", "SYSTEM.md"),
 		piWorkspaceNodeModulesPath: workspaceNodeModulesPath,
@@ -130,6 +131,7 @@ export function validatePiInstallation(appRoot: string): string[] {
 		if (!hasDevPolyfill) missing.push(paths.promisePolyfillPath);
 	}
 	if (!existsSync(paths.researchToolsPath)) missing.push(paths.researchToolsPath);
+	if (!existsSync(paths.webExtensionPath)) missing.push(paths.webExtensionPath);
 	if (!existsSync(paths.promptTemplatePath)) missing.push(paths.promptTemplatePath);
 
 	return missing;
@@ -141,6 +143,8 @@ export function buildPiArgs(options: PiRuntimeOptions, paths: PiPaths = resolveP
 		options.sessionDir,
 		"--extension",
 		paths.researchToolsPath,
+		"--extension",
+		paths.webExtensionPath,
 		"--prompt-template",
 		paths.promptTemplatePath,
 	];
@@ -181,7 +185,6 @@ export function buildPiEnv(
 	const feynmanNpmPrefixPath = getFeynmanNpmPrefixPath(options.feynmanAgentDir);
 	const feynmanNpmBinPath = resolve(feynmanNpmPrefixPath, "bin");
 	const feynmanCommandShimDir = getFeynmanCommandShimDir(options.feynmanAgentDir);
-	const feynmanWebSearchConfigPath = resolve(dirname(options.feynmanAgentDir), "web-search.json");
 	const feynmanBinPath = getFeynmanCliBinPath(options.appRoot);
 
 	const currentPath = process.env.PATH ?? "";
@@ -199,7 +202,6 @@ export function buildPiEnv(
 		FEYNMAN_VERSION: options.feynmanVersion,
 		FEYNMAN_SESSION_DIR: options.sessionDir,
 		FEYNMAN_MEMORY_DIR: resolve(dirname(options.feynmanAgentDir), "memory"),
-		FEYNMAN_WEB_SEARCH_CONFIG: feynmanWebSearchConfigPath,
 		FEYNMAN_NODE_EXECUTABLE: process.execPath,
 		FEYNMAN_BIN_PATH: feynmanBinPath,
 		FEYNMAN_PI_CLI_PATH: paths.piCliPath,

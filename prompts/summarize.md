@@ -8,8 +8,10 @@ topLevelCli: true
 
 Tool names are literal. Use only tools visible in the current tool set.
 
-- Search with `web_search`; do not call `search_web`, `google_search`, `google:search`, `search_google`, or `WebSearch`.
-- Fetch URLs with `fetch_content`; do not call bare `fetch`, `WebFetch`, `read_url_content`, or pass an array as `url`. Use `urls` for multiple URLs when the tool supports it.
+- Search with `web` using `action: "search"` and `query`; do not call `web_search`, `search_web`, `google_search`, `google:search`, `search_google`, or `WebSearch`.
+- Navigate or fetch pages with `web` using `action: "goto"` and an absolute http(s) `url`; do not call `fetch_content`, bare `fetch`, `WebFetch`, or `read_url_content`.
+- Click links with `web` using `action: "click"` and a kdriver `ref` (for example `e142`). Paginate with `action: "search_next"`. Close the session with `action: "close"`.
+- Full page content is written to artifact paths returned by `web`; read those files with `read` instead of expecting inline dumps.
 - Use visible Feynman alpha tools such as `alpha_search` when present. For shell access, call `feynman alpha ...`; do not call the user's bare global `alpha` binary.
 - To ask the user a question, write plain chat text and wait for the next user message. Do not call `ask_user_question`, `ask_user`, `ask_followup_question`, or `user_choice`.
 - Do not use `Task` as an agent dispatcher. Use only the visible `subagent` tool when it exists.
@@ -46,7 +48,7 @@ Rules:
 Run all guards before any tier logic. A failure here is cheap; a failure mid-Tier-3 is not.
 
 - **GitHub repo URL** (`https://github.com/owner/repo` — exactly 4 slashes): fetch the raw README instead. Try `https://raw.githubusercontent.com/{owner}/{repo}/main/README.md`, then `/master/README.md`. A repo HTML page is not the document the user wants to summarize.
-- **Remote URL**: fetch to disk with `curl -sL -o outputs/.notes/<slug>-raw.txt <url>`. Do NOT use fetch_content — its return value enters context directly, bypassing the RLM external-variable principle.
+- **Remote URL**: fetch to disk with `curl -sL -o outputs/.notes/<slug>-raw.txt <url>`. Do NOT use `web` goto — its return value enters context directly, bypassing the RLM external-variable principle.
 - **Local file or PDF**: copy or extract to `outputs/.notes/<slug>-raw.txt`. For PDFs, extract text via `pdftotext` or equivalent before measuring.
 - **Empty or failed fetch**: if the file is < 50 bytes after fetching, stop and surface the error to the user — do not proceed to tier selection.
 - **Binary content**: if the file is > 1 KB but contains < 100 readable text characters, stop and tell the user the content appears binary or unextracted.
@@ -134,7 +136,7 @@ Briefly summarize: "Source is ~<chars> chars -> <N> chunks -> <N> researcher sub
 {
   "tasks": [{
     "agent": "researcher",
-    "task": "Read ONLY `outputs/.notes/<slug>-chunk-NNN.txt`. Extract: (1) key claims, (2) methodology or technical approach, (3) cited evidence. Do NOT use web_search or fetch external URLs — this is single-source summarization. If a claim appears to start or end mid-sentence at the file boundary, mark it BOUNDARY PARTIAL. Write to `outputs/.notes/<slug>-summary-chunk-NNN.md`.",
+    "task": "Read ONLY `outputs/.notes/<slug>-chunk-NNN.txt`. Extract: (1) key claims, (2) methodology or technical approach, (3) cited evidence. Do NOT use `web` or fetch external URLs — this is single-source summarization. If a claim appears to start or end mid-sentence at the file boundary, mark it BOUNDARY PARTIAL. Write to `outputs/.notes/<slug>-summary-chunk-NNN.md`.",
     "output": "outputs/.notes/<slug>-summary-chunk-NNN.md"
   }],
   "concurrency": 4,

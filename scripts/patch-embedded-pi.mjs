@@ -12,7 +12,6 @@ import { patchPiExtensionLoaderSource } from "./lib/pi-extension-loader-patch.mj
 import { resolveAdjacentNpmCommand } from "./lib/npm-command.mjs";
 import { patchPiModelRegistrySource } from "./lib/pi-model-registry-patch.mjs";
 import { patchPiEditorSource, patchPiInteractiveThemeSource, patchPiTuiSource } from "./lib/pi-tui-patch.mjs";
-import { PI_WEB_ACCESS_PATCH_TARGETS, patchPiWebAccessSource } from "./lib/pi-web-access-patch.mjs";
 import { PI_SUBAGENTS_PATCH_TARGETS, patchPiSubagentsSource, stripPiSubagentBuiltinModelSource } from "./lib/pi-subagents-patch.mjs";
 import { PI_OTEL_PATCH_TARGETS, patchPiOtelSource } from "./lib/pi-otel-patch.mjs";
 import { patchPiSessionSearchSource } from "./lib/pi-session-search-patch.mjs";
@@ -828,21 +827,6 @@ for (const entryPath of [editorPath, workspaceEditorPath].filter(Boolean)) {
 	const patched = patchPiEditorSource(source);
 	if (patched !== source) {
 		writeFileSync(entryPath, patched, "utf8");
-	}
-}
-
-const piWebAccessRoot = resolve(workspaceRoot, "pi-web-access");
-
-if (existsSync(piWebAccessRoot)) {
-	for (const relativePath of PI_WEB_ACCESS_PATCH_TARGETS) {
-		const entryPath = resolve(piWebAccessRoot, relativePath);
-		if (!existsSync(entryPath)) continue;
-
-		const source = readFileSync(entryPath, "utf8");
-		const patched = patchPiWebAccessSource(relativePath, source);
-		if (patched !== source) {
-			writeFileSync(entryPath, patched, "utf8");
-		}
 	}
 }
 

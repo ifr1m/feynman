@@ -1,9 +1,6 @@
 export {
-	formatPiWebAccessDoctorLines,
-	getPiWebAccessStatus,
-	getPiWebSearchConfigPath,
-	loadPiWebAccessConfig,
-	type PiWebAccessConfig,
-	type PiWebAccessStatus,
-	type PiWebSearchProvider,
-} from "./pi/web-access.js";
+	formatWebToolDoctorLines,
+	getWebExtensionPath,
+	getWebToolStatus,
+	type WebToolStatus,
+} from "./pi/web-tool.js";

@@ -1,7 +1,7 @@
 import { isLoggedIn as isAlphaLoggedIn, login as loginAlpha } from "@companion-ai/alpha-hub/lib";
 import { dirname } from "node:path";
 
-import { getPiWebAccessStatus } from "../pi/web-access.js";
+import { getWebToolStatus } from "../pi/web-tool.js";
 import { normalizeFeynmanSettings } from "../pi/settings.js";
 import type { ThinkingLevel } from "../pi/settings.js";
 import { getMissingConfiguredPackages, installPackageSources } from "../pi/package-ops.js";
@@ -202,7 +202,8 @@ export async function runSetup(options: SetupOptions): Promise<void> {
 		printInfo(`Model: ${getCurrentModelSpec(options.settingsPath) ?? "not set"}`);
 		printInfo(`alphaXiv: ${isAlphaLoggedIn() ? "configured" : "not configured"}`);
 		printInfo(`Preview: ${resolveExecutable("pandoc", PANDOC_FALLBACK_PATHS) ? "configured" : "not configured"}`);
-		printInfo(`Web: ${getPiWebAccessStatus().routeLabel}`);
+		const webStatus = getWebToolStatus(options.appRoot);
+		printInfo(`Web: ${webStatus.kdriverReady ? "kdriver-cli ready" : "kdriver-cli missing"}`);
 		if (modelStatus.recommended && !modelStatus.currentValid) {
 			printInfo(`Recommended model: ${modelStatus.recommended}`);
 		}

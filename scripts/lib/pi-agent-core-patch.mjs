@@ -1,63 +1,75 @@
 const HELPER = `
-function normalizeFeynmanSearchToolArguments(args) {
+function normalizeFeynmanWebToolArguments(args, action) {
     if (!args || typeof args !== "object" || Array.isArray(args)) {
-        return args;
+        return { action };
     }
-    const normalized = { ...args };
-    if (Array.isArray(normalized.queries) || typeof normalized.query === "string") {
-        return normalized;
-    }
-    if (Array.isArray(normalized.q)) {
-        normalized.queries = normalized.q;
+    const normalized = { ...args, action };
+    if (action === "search") {
+        if (typeof normalized.query !== "string") {
+            if (typeof normalized.q === "string") {
+                normalized.query = normalized.q;
+                delete normalized.q;
+            }
+            else if (Array.isArray(normalized.queries) && typeof normalized.queries[0] === "string") {
+                normalized.query = normalized.queries[0];
+            }
+            else if (Array.isArray(normalized.q) && typeof normalized.q[0] === "string") {
+                normalized.query = normalized.q[0];
+            }
+        }
+        delete normalized.queries;
         delete normalized.q;
-        return normalized;
     }
-    if (typeof normalized.q === "string") {
-        normalized.query = normalized.q;
-        delete normalized.q;
-    }
-    return normalized;
-}
-
-function normalizeFeynmanFetchToolArguments(args) {
-    if (!args || typeof args !== "object" || Array.isArray(args)) {
-        return args;
-    }
-    const normalized = { ...args };
-    if (Array.isArray(normalized.urls) || typeof normalized.url === "string") {
-        return normalized;
-    }
-    if (Array.isArray(normalized.url)) {
-        normalized.urls = normalized.url;
-        delete normalized.url;
+    if (action === "goto") {
+        if (typeof normalized.url !== "string") {
+            if (Array.isArray(normalized.urls) && typeof normalized.urls[0] === "string") {
+                normalized.url = normalized.urls[0];
+            }
+            else if (Array.isArray(normalized.url) && typeof normalized.url[0] === "string") {
+                normalized.url = normalized.url[0];
+            }
+        }
+        delete normalized.urls;
     }
     return normalized;
 }
 
 function normalizeFeynmanToolAlias(toolCall, tools) {
-    const aliases = new Map([
-        ["google:search", "web_search"],
-        ["google_search", "web_search"],
-        ["google.search", "web_search"],
-        ["search_google", "web_search"],
-        ["search_web", "web_search"],
-        ["WebSearch", "web_search"],
-        ["fetch", "fetch_content"],
-        ["WebFetch", "fetch_content"],
-        ["read_url_content", "fetch_content"],
-    ]);
-    const targetName = aliases.get(toolCall.name);
-    if (!targetName || !tools?.some((tool) => tool.name === targetName)) {
+    const hasWeb = tools?.some((tool) => tool.name === "web");
+    if (!hasWeb) {
         return toolCall;
     }
-    const args = targetName === "fetch_content"
-        ? normalizeFeynmanFetchToolArguments(toolCall.arguments)
-        : normalizeFeynmanSearchToolArguments(toolCall.arguments);
-    return {
-        ...toolCall,
-        name: targetName,
-        arguments: args,
-    };
+    const searchAliases = new Set([
+        "google:search",
+        "google_search",
+        "google.search",
+        "search_google",
+        "search_web",
+        "WebSearch",
+        "web_search",
+    ]);
+    const gotoAliases = new Set([
+        "fetch",
+        "WebFetch",
+        "read_url_content",
+        "fetch_content",
+        "get_search_content",
+    ]);
+    if (searchAliases.has(toolCall.name)) {
+        return {
+            ...toolCall,
+            name: "web",
+            arguments: normalizeFeynmanWebToolArguments(toolCall.arguments, "search"),
+        };
+    }
+    if (gotoAliases.has(toolCall.name)) {
+        return {
+            ...toolCall,
+            name: "web",
+            arguments: normalizeFeynmanWebToolArguments(toolCall.arguments, "goto"),
+        };
+    }
+    return toolCall;
 }
 `;
 

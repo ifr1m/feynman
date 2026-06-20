@@ -9,8 +9,6 @@ import { PI_OTEL_PATCH_TARGETS, patchPiOtelSource } from "../../scripts/lib/pi-o
 import { PI_SESSION_SEARCH_PATCH_TARGETS, patchPiSessionSearchSource } from "../../scripts/lib/pi-session-search-patch.mjs";
 import { PI_SUBAGENTS_PATCH_TARGETS, patchPiSubagentsSource } from "../../scripts/lib/pi-subagents-patch.mjs";
 import { patchPiEditorSource, patchPiInteractiveThemeSource, patchPiTuiSource } from "../../scripts/lib/pi-tui-patch.mjs";
-import { PI_WEB_ACCESS_PATCH_TARGETS, patchPiWebAccessSource } from "../../scripts/lib/pi-web-access-patch.mjs";
-
 function patchFileIfPresent(path: string, patchSource: (source: string) => string): boolean {
 	if (!existsSync(path)) {
 		return false;
@@ -137,12 +135,6 @@ export function patchPiRuntimeNodeModules(appRoot: string, feynmanAgentDir?: str
 		changed = patchFileIfPresent(
 			resolve(nodeModulesPath, "@companion-ai", "alpha-hub", "src", "lib", "index.js"),
 			patchAlphaHubSearchResultsSource,
-		) || changed;
-		changed = patchPackageFiles(
-			nodeModulesPath,
-			"pi-web-access",
-			PI_WEB_ACCESS_PATCH_TARGETS,
-			patchPiWebAccessSource,
 		) || changed;
 		changed = patchPackageFiles(
 			nodeModulesPath,

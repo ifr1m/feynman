@@ -35,6 +35,8 @@ test("buildPiArgs includes configured runtime paths and prompt", () => {
 		"/sessions",
 		"--extension",
 		"/repo/feynman/extensions/research-tools.ts",
+		"--extension",
+		"/repo/feynman/extensions/web/index.ts",
 		"--prompt-template",
 		"/repo/feynman/prompts",
 		"--mode",
@@ -456,6 +458,8 @@ test("resolvePiPaths falls back to the vendored runtime workspace in packed inst
 	writeFileSync(join(appRoot, "dist", "pi", "pi-cli-wrapper.js"), "", "utf8");
 	writeFileSync(join(appRoot, "dist", "system", "promise-polyfill.js"), "", "utf8");
 	writeFileSync(join(appRoot, "extensions", "research-tools.ts"), "", "utf8");
+	mkdirSync(join(appRoot, "extensions", "web"), { recursive: true });
+	writeFileSync(join(appRoot, "extensions", "web", "index.ts"), "", "utf8");
 
 	const paths = resolvePiPaths(appRoot);
 

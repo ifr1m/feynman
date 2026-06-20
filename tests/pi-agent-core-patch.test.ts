@@ -41,16 +41,14 @@ async function prepareToolCall(currentContext, assistantMessage, toolCall, confi
 }
 `;
 
-test("patchPiAgentCoreSource maps google search aliases to web_search", () => {
+test("patchPiAgentCoreSource maps legacy search and fetch aliases to web", () => {
 	const patched = patchPiAgentCoreSource(SOURCE);
 
 	assert.match(patched, /function normalizeFeynmanToolAlias/);
-	assert.match(patched, /\["google:search", "web_search"\]/);
-	assert.match(patched, /\["search_web", "web_search"\]/);
-	assert.match(patched, /\["fetch", "fetch_content"\]/);
-	assert.match(patched, /\["read_url_content", "fetch_content"\]/);
-	assert.match(patched, /function normalizeFeynmanFetchToolArguments/);
-	assert.match(patched, /normalized\.urls = normalized\.url/);
+	assert.match(patched, /"web_search"/);
+	assert.match(patched, /"fetch_content"/);
+	assert.match(patched, /normalizeFeynmanWebToolArguments\(toolCall\.arguments, "search"\)/);
+	assert.match(patched, /normalizeFeynmanWebToolArguments\(toolCall\.arguments, "goto"\)/);
 	assert.match(patched, /const effectiveToolCall = normalizeFeynmanToolAlias\(toolCall, currentContext\.tools\)/);
 	assert.match(patched, /t\.name === effectiveToolCall\.name/);
 	assert.match(patched, /prepareToolCallArguments\(tool, effectiveToolCall\)/);

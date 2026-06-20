@@ -7,8 +7,10 @@ topLevelCli: true
 
 Tool names are literal. Use only tools visible in the current tool set.
 
-- Search with `web_search`; do not call `search_web`, `google_search`, `google:search`, `search_google`, or `WebSearch`.
-- Fetch URLs with `fetch_content`; do not call bare `fetch`, `WebFetch`, `read_url_content`, or pass an array as `url`. Use `urls` for multiple URLs when the tool supports it.
+- Search with `web` using `action: "search"` and `query`; do not call `web_search`, `search_web`, `google_search`, `google:search`, `search_google`, or `WebSearch`.
+- Navigate or fetch pages with `web` using `action: "goto"` and an absolute http(s) `url`; do not call `fetch_content`, bare `fetch`, `WebFetch`, or `read_url_content`.
+- Click links with `web` using `action: "click"` and a kdriver `ref` (for example `e142`). Paginate with `action: "search_next"`. Close the session with `action: "close"`.
+- Full page content is written to artifact paths returned by `web`; read those files with `read` instead of expecting inline dumps.
 - Use visible Feynman alpha tools such as `alpha_search` when present. For shell access, call `feynman alpha ...`; do not call the user's bare global `alpha` binary.
 - To ask the user a question, write plain chat text and wait for the next user message. Do not call `ask_user_question`, `ask_user`, `ask_followup_question`, or `user_choice`.
 - Do not use `Task` as an agent dispatcher. Use only the visible `subagent` tool when it exists.

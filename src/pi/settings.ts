@@ -115,7 +115,10 @@ export function normalizeFeynmanSettings(
 	} else if (shouldPruneLegacyDefaultPackages(settings.packages as PackageSource[])) {
 		settings.packages = supportedCorePackages;
 	} else {
-		settings.packages = filterConfiguredPackagesForCurrentNode(settings.packages as PackageSource[]);
+		settings.packages = filterConfiguredPackagesForCurrentNode(settings.packages as PackageSource[]).filter((entry) => {
+			const source = typeof entry === "string" ? entry : entry.source;
+			return source !== "npm:pi-web-access";
+		});
 	}
 
 	const availableModels = getAvailableModelRecords(authPath).map((model) => ({

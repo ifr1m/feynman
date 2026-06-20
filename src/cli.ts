@@ -69,8 +69,7 @@ import {
 	isProClassModelSpec,
 	getSupportedModelRecords,
 } from "./model/catalog.js";
-import { clearSearchConfig, printSearchStatus, setSearchProvider } from "./search/commands.js";
-import type { PiWebSearchProvider } from "./pi/web-access.js";
+import { printSearchStatus } from "./search/commands.js";
 import { fetchLatestFeynmanVersion, getFeynmanUpgradeLines, isNewerVersion } from "./system/self-update.js";
 import { runDoctor, runStatus } from "./setup/doctor.js";
 import { setupPreviewDependencies } from "./setup/preview.js";
@@ -442,28 +441,13 @@ async function handlePackagesCommand(subcommand: string | undefined, args: strin
 	}
 }
 
-function handleSearchCommand(subcommand: string | undefined, args: string[]): void {
+function handleSearchCommand(subcommand: string | undefined, _args: string[], appRoot: string): void {
 	if (!subcommand || subcommand === "status") {
-		printSearchStatus();
+		printSearchStatus(appRoot);
 		return;
 	}
 
-	if (subcommand === "set") {
-		const provider = args[0] as PiWebSearchProvider | undefined;
-		const validProviders: PiWebSearchProvider[] = ["auto", "perplexity", "exa", "gemini"];
-		if (!provider || !validProviders.includes(provider)) {
-			throw new Error("Usage: feynman search set <auto|perplexity|exa|gemini> [api-key]");
-		}
-		setSearchProvider(provider, args[1]);
-		return;
-	}
-
-	if (subcommand === "clear") {
-		clearSearchConfig();
-		return;
-	}
-
-	throw new Error(`Unknown search command: ${subcommand}`);
+	throw new Error(`Unknown search command: ${subcommand}. Use: feynman search status`);
 }
 
 function loadPackageVersion(appRoot: string): { version?: string } {
@@ -1035,7 +1019,7 @@ async function runMain(input: { here: string; appRoot: string; feynmanVersion: s
 	}
 
 	if (command === "search") {
-		handleSearchCommand(rest[0], rest.slice(1));
+		handleSearchCommand(rest[0], rest.slice(1), appRoot);
 		return;
 	}
 

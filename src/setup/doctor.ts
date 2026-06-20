@@ -2,7 +2,7 @@ import { getUserName as getAlphaUserName, isLoggedIn as isAlphaLoggedIn } from "
 
 import { readFileSync } from "node:fs";
 
-import { formatPiWebAccessDoctorLines, getPiWebAccessStatus } from "../pi/web-access.js";
+import { formatWebToolDoctorLines, getWebToolStatus } from "../pi/web-tool.js";
 import { BROWSER_FALLBACK_PATHS, PANDOC_FALLBACK_PATHS, resolveExecutable } from "../system/executables.js";
 import { readJson } from "../pi/settings.js";
 import { validatePiInstallation } from "../pi/runtime.js";
@@ -54,7 +54,7 @@ export type FeynmanStatusSnapshot = {
 	modelGuidance: string[];
 	alphaLoggedIn: boolean;
 	alphaUser?: string;
-	webRouteLabel: string;
+	webReady: boolean;
 	previewConfigured: boolean;
 	sessionDir: string;
 	pandocReady: boolean;
@@ -67,7 +67,7 @@ export function collectStatusSnapshot(options: DoctorOptions): FeynmanStatusSnap
 	const pandocPath = resolveExecutable("pandoc", PANDOC_FALLBACK_PATHS);
 	const browserPath = process.env.PUPPETEER_EXECUTABLE_PATH ?? resolveExecutable("google-chrome", BROWSER_FALLBACK_PATHS);
 	const missingPiBits = validatePiInstallation(options.appRoot);
-	const webStatus = getPiWebAccessStatus();
+	const webStatus = getWebToolStatus(options.appRoot);
 	const modelStatus = buildModelStatusSnapshotFromRecords(
 		getSupportedModelRecords(options.authPath),
 		getAvailableModelRecords(options.authPath),
@@ -85,7 +85,7 @@ export function collectStatusSnapshot(options: DoctorOptions): FeynmanStatusSnap
 		modelGuidance: modelStatus.guidance,
 		alphaLoggedIn: isAlphaLoggedIn(),
 		alphaUser: isAlphaLoggedIn() ? getAlphaUserName() ?? undefined : undefined,
-		webRouteLabel: webStatus.routeLabel,
+		webReady: webStatus.extensionExists && webStatus.kdriverReady,
 		previewConfigured: Boolean(pandocPath),
 		sessionDir: options.sessionDir,
 		pandocReady: Boolean(pandocPath),
@@ -107,7 +107,7 @@ export function runStatus(options: DoctorOptions): void {
 	printInfo(`Authenticated providers: ${snapshot.authenticatedProviderCount}`);
 	printInfo(`Recommended model: ${snapshot.recommendedModel ?? "not available"}`);
 	printInfo(`alphaXiv: ${snapshot.alphaLoggedIn ? snapshot.alphaUser ?? "configured" : "not configured"}`);
-	printInfo(`Web access: pi-web-access (${snapshot.webRouteLabel})`);
+	printInfo(`Web access: extensions/web (${snapshot.webReady ? "ready" : "missing kdriver-cli or extension"})`);
 	printInfo(`Service tier: ${getConfiguredServiceTier(options.settingsPath) ?? "not set"}`);
 	printInfo(`Preview: ${snapshot.previewConfigured ? "configured" : "not configured"}`);
 
@@ -190,7 +190,7 @@ export function runDoctor(options: DoctorOptions): void {
 	}
 	console.log(`pandoc: ${pandocPath ?? "missing"}`);
 	console.log(`browser preview runtime: ${browserPath ?? "missing"}`);
-	for (const line of formatPiWebAccessDoctorLines()) {
+	for (const line of formatWebToolDoctorLines(getWebToolStatus(options.appRoot))) {
 		console.log(line);
 	}
 	console.log(`quiet startup: ${settings.quietStartup === true ? "enabled" : "disabled"}`);

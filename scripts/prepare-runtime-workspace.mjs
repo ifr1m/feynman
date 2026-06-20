@@ -6,7 +6,6 @@ import { spawnSync } from "node:child_process";
 import { patchPiAgentCoreSource } from "./lib/pi-agent-core-patch.mjs";
 import { patchPiExtensionLoaderSource } from "./lib/pi-extension-loader-patch.mjs";
 import { patchPiEditorSource, patchPiInteractiveThemeSource, patchPiTuiSource } from "./lib/pi-tui-patch.mjs";
-import { PI_WEB_ACCESS_PATCH_TARGETS, patchPiWebAccessSource } from "./lib/pi-web-access-patch.mjs";
 import { PI_SUBAGENTS_PATCH_TARGETS, patchPiSubagentsSource, stripPiSubagentBuiltinModelSource } from "./lib/pi-subagents-patch.mjs";
 import { PI_OTEL_PATCH_TARGETS, patchPiOtelSource } from "./lib/pi-otel-patch.mjs";
 import { PI_SESSION_SEARCH_PATCH_TARGETS, patchPiSessionSearchSource } from "./lib/pi-session-search-patch.mjs";
@@ -135,7 +134,6 @@ function getRuntimeInputHash() {
 		resolve(appRoot, "scripts", "lib", "pi-agent-core-patch.mjs"),
 		resolve(appRoot, "scripts", "lib", "pi-extension-loader-patch.mjs"),
 		resolve(appRoot, "scripts", "lib", "pi-tui-patch.mjs"),
-		resolve(appRoot, "scripts", "lib", "pi-web-access-patch.mjs"),
 		resolve(appRoot, "scripts", "lib", "pi-subagents-patch.mjs"),
 		resolve(appRoot, "scripts", "lib", "pi-otel-patch.mjs"),
 		resolve(appRoot, "scripts", "lib", "pi-session-search-patch.mjs"),
@@ -378,26 +376,6 @@ function patchBundledPiInteractiveTheme() {
 	return patchScopedPiWorkspaceFile("pi-coding-agent", "dist/modes/interactive/theme/theme.js", patchPiInteractiveThemeSource);
 }
 
-function patchBundledPiWebAccess() {
-	const piWebAccessRoot = resolve(workspaceNodeModulesDir, "pi-web-access");
-	if (!existsSync(piWebAccessRoot)) {
-		return false;
-	}
-
-	let changed = false;
-	for (const relativePath of PI_WEB_ACCESS_PATCH_TARGETS) {
-		const entryPath = resolve(piWebAccessRoot, relativePath);
-		if (!existsSync(entryPath)) continue;
-
-		const source = readFileSync(entryPath, "utf8");
-		const patched = patchPiWebAccessSource(relativePath, source);
-		if (patched === source) continue;
-		writeFileSync(entryPath, patched, "utf8");
-		changed = true;
-	}
-	return changed;
-}
-
 function patchBundledPiOtel() {
 	const piOtelRoot = resolve(workspaceNodeModulesDir, "pi-otel");
 	if (!existsSync(piOtelRoot)) {
@@ -460,7 +438,6 @@ function patchBundledRuntime() {
 	changed = patchBundledPiExtensionLoader() || changed;
 	changed = patchBundledPiInteractiveTheme() || changed;
 	changed = patchBundledPiTui() || changed;
-	changed = patchBundledPiWebAccess() || changed;
 	changed = patchBundledPiSubagents() || changed;
 	changed = patchBundledPiOtel() || changed;
 	changed = patchBundledPiSessionSearch() || changed;

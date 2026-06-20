@@ -152,19 +152,6 @@ export async function agenticSearch(query) {
 }
 `;
 
-const WEB_ACCESS_INDEX_SOURCE = `
-import { join } from "node:path";
-import { homedir } from "node:os";
-const WEB_SEARCH_CONFIG_PATH = join(homedir(), ".pi", "web-search.json");
-function saveConfig() {
-    const dir = join(homedir(), ".pi");
-}
-async function execute(params, configWorkflow, ctx) {
-    const workflow = resolveWorkflow(params.workflow ?? configWorkflow, ctx?.hasUI !== false);
-}
-pi.registerCommand("search", { description: "Browse stored web search results" });
-`;
-
 const SUBAGENT_PI_SPAWN_SOURCE = `
 export interface PiSpawnDeps {
 	execPath?: string;
@@ -216,9 +203,8 @@ test("patchPiRuntimeNodeModules patches installed Pi runtime files", async () =>
 
 	const patched = readFileSync(agentLoopPath, "utf8");
 	assert.match(patched, /function normalizeFeynmanToolAlias/);
-	assert.match(patched, /\["google:search", "web_search"\]/);
-	assert.match(patched, /\["search_web", "web_search"\]/);
-	assert.match(patched, /\["fetch", "fetch_content"\]/);
+	assert.match(patched, /"web_search"/);
+	assert.match(patched, /"fetch_content"/);
 	assert.match(patched, /prepareToolCallArguments\(tool, effectiveToolCall\)/);
 	const patchedTui = readFileSync(tuiPath, "utf8");
 	assert.match(patchedTui, /line = sliceByColumn\(line, 0, width, true\)/);
@@ -240,7 +226,6 @@ test("patchPiRuntimeNodeModules patches the vendored runtime workspace", async (
 	const editorPath = join(appRoot, ".feynman", "npm", "node_modules", "@mariozechner", "pi-tui", "dist", "components", "editor.js");
 	const themePath = join(appRoot, ".feynman", "npm", "node_modules", "@mariozechner", "pi-coding-agent", "dist", "modes", "interactive", "theme", "theme.js");
 	const packageJsonPath = join(appRoot, ".feynman", "npm", "node_modules", "@mariozechner", "pi-coding-agent", "package.json");
-	const webAccessPath = join(appRoot, ".feynman", "npm", "node_modules", "pi-web-access", "index.ts");
 	const subagentSpawnPath = join(appRoot, ".feynman", "npm", "node_modules", "pi-subagents", "src", "runs", "shared", "pi-spawn.ts");
 	const piOtelConfigPath = join(appRoot, ".feynman", "npm", "node_modules", "pi-otel", "dist", "config.js");
 	const sessionSearchPath = join(appRoot, ".feynman", "npm", "node_modules", "@kaiserlich-dev", "pi-session-search", "extensions", "indexer.ts");
@@ -249,7 +234,6 @@ test("patchPiRuntimeNodeModules patches the vendored runtime workspace", async (
 	await mkdir(dirname(editorPath), { recursive: true });
 	await mkdir(dirname(themePath), { recursive: true });
 	await mkdir(dirname(packageJsonPath), { recursive: true });
-	await mkdir(dirname(webAccessPath), { recursive: true });
 	await mkdir(dirname(subagentSpawnPath), { recursive: true });
 	await mkdir(dirname(piOtelConfigPath), { recursive: true });
 	await mkdir(dirname(sessionSearchPath), { recursive: true });
@@ -262,7 +246,6 @@ test("patchPiRuntimeNodeModules patches the vendored runtime workspace", async (
 		JSON.stringify({ name: "@mariozechner/pi-coding-agent", piConfig: { configDir: ".pi" } }, null, 2) + "\n",
 		"utf8",
 	);
-	writeFileSync(webAccessPath, WEB_ACCESS_INDEX_SOURCE, "utf8");
 	writeFileSync(subagentSpawnPath, SUBAGENT_PI_SPAWN_SOURCE, "utf8");
 	writeFileSync(piOtelConfigPath, PI_OTEL_CONFIG_SOURCE, "utf8");
 	writeFileSync(sessionSearchPath, SESSION_SEARCH_INDEXER_SOURCE, "utf8");
@@ -276,8 +259,6 @@ test("patchPiRuntimeNodeModules patches the vendored runtime workspace", async (
 	const patchedPackageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { piConfig?: Record<string, unknown> };
 	assert.equal(patchedPackageJson.piConfig?.name, "feynman");
 	assert.equal(patchedPackageJson.piConfig?.configDir, ".feynman");
-	assert.match(readFileSync(webAccessPath, "utf8"), /params\.workflow \?\? configWorkflow \?\? "none"/);
-	assert.match(readFileSync(webAccessPath, "utf8"), /pi\.registerCommand\("web-results"/);
 	assert.match(readFileSync(subagentSpawnPath, "utf8"), /process\.env\.FEYNMAN_PI_CLI_PATH/);
 	assert.match(readFileSync(subagentSpawnPath, "utf8"), /\targv2\?: string;/);
 	assert.match(readFileSync(subagentSpawnPath, "utf8"), /path\.basename\(argvPath\) !== "pi-cli-wrapper\.js"/);

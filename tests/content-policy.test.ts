@@ -74,32 +74,30 @@ test("deepresearch workflow requires durable artifacts even when blocked", () =>
 	assert.match(deepResearchPrompt, /Never end with only an explanation in chat after plan approval/i);
 });
 
-test("research workflows use real web-search tool names and grant them to evidence agents", () => {
+test("research workflows use the bundled web tool and grant it to evidence agents", () => {
 	const systemPrompt = readFileSync(join(repoRoot, ".feynman", "SYSTEM.md"), "utf8");
 	const deepResearchPrompt = readFileSync(join(repoRoot, "prompts", "deepresearch.md"), "utf8");
 	const researcherPrompt = readFileSync(join(repoRoot, ".feynman", "agents", "researcher.md"), "utf8");
 	const verifierPrompt = readFileSync(join(repoRoot, ".feynman", "agents", "verifier.md"), "utf8");
 
-	assert.match(systemPrompt, /call `web_search`/i);
-	assert.match(systemPrompt, /do not call non-existent aliases such as `search_web`/i);
-	assert.match(deepResearchPrompt, /call `web_search`/i);
-	assert.match(deepResearchPrompt, /do not call `search_web`/i);
-	assert.match(deepResearchPrompt, /Fetch URLs with `fetch_content`/i);
-	assert.match(deepResearchPrompt, /do not call bare `fetch`/i);
+	assert.match(systemPrompt, /call `web` with `action: "search"`/i);
+	assert.match(systemPrompt, /do not call `web_search`/i);
+	assert.match(deepResearchPrompt, /call `web` with `action: "search"`/i);
+	assert.match(deepResearchPrompt, /do not call `web_search`/i);
+	assert.match(deepResearchPrompt, /Navigate or fetch pages with `web`/i);
+	assert.match(deepResearchPrompt, /do not call `fetch_content`/i);
 	assert.match(deepResearchPrompt, /Use visible Feynman alpha tools such as `alpha_search`/i);
 	assert.match(deepResearchPrompt, /call `feynman alpha \.\.\.`/i);
 	assert.match(deepResearchPrompt, /do not call the user's bare global `alpha` binary/i);
 	assert.match(deepResearchPrompt, /Do not use `Task` as an agent dispatcher/i);
-	assert.match(researcherPrompt, /provider-available page text/i);
-	assert.doesNotMatch(researcherPrompt, /full page content|full page contents|Only fetch full content/i);
+	assert.match(researcherPrompt, /artifact paths returned by `web`/i);
 
 	for (const [label, content] of [
 		["researcher prompt", researcherPrompt],
 		["verifier prompt", verifierPrompt],
 	] as const) {
-		assert.match(content, /^tools: .*web_search/m, `${label} must grant web_search`);
-		assert.match(content, /^tools: .*fetch_content/m, `${label} must grant fetch_content`);
-		assert.match(content, /^tools: .*get_search_content/m, `${label} must grant get_search_content`);
+		assert.match(content, /^tools: .*[, ]web(?:[, ]|$)/m, `${label} must grant web`);
+		assert.doesNotMatch(content, /^tools: .*web_search/m, `${label} must not grant web_search`);
 	}
 });
 

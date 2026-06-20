@@ -5,7 +5,6 @@ export const CORE_PACKAGE_SOURCES = [
 	"npm:pi-subagents",
 	"npm:pi-btw",
 	"npm:pi-docparser",
-	"npm:pi-web-access",
 	"npm:pi-otel",
 ] as const;
 
@@ -14,7 +13,6 @@ const LEGACY_CORE_PACKAGE_SOURCES = [
 	"npm:pi-subagents",
 	"npm:pi-btw",
 	"npm:pi-docparser",
-	"npm:pi-web-access",
 	"npm:pi-markdown-preview",
 	"npm:@walterra/pi-charts",
 	"npm:pi-mermaid",
