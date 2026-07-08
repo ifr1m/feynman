@@ -40,8 +40,109 @@ const PATCHED_OPEN_BROWSER = [
 const LEGACY_WIN_OPEN = "else if (plat === 'win32') execSync(`start \"${url}\"`);";
 const FIXED_WIN_OPEN = "else if (plat === 'win32') execSync(`cmd /c start \"\" \"${url}\"`);";
 
+const OAUTH_BROWSER_HELPERS = `
+function buildAlphaConsentUrl(authUrl) {
+  const source = new URL(authUrl);
+  const consent = new URL('https://accounts.alphaxiv.org/oauth-consent');
+  for (const [key, value] of source.searchParams.entries()) {
+    consent.searchParams.set(key, value);
+  }
+  return consent.toString();
+}
+
+function buildAlphaSignInUrl(authUrl) {
+  const signIn = new URL('https://www.alphaxiv.org/signin');
+  signIn.searchParams.set('redirect_url', buildAlphaConsentUrl(authUrl));
+  return signIn.toString();
+}
+`;
+
+const OPEN_BROWSER_AUTH_URL = "openBrowser(authUrl.toString());";
+const OPEN_BROWSER_SIGNIN_URL = "openBrowser(buildAlphaSignInUrl(authUrl.toString()));";
+
+const AUTH_URL_LOG = "process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);";
+const SIGNIN_URL_LOG = "process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);";
+
 const OPEN_BROWSER_LOG = "process.stderr.write('Opening browser for alphaXiv login...\\n');";
 const OPEN_BROWSER_LOG_WITH_URL = "process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);";
+
+const FS_IMPORT = "import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';";
+const FS_IMPORT_WITH_UNLINK = "import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';";
+
+const PENDING_LOGIN_HELPERS = `
+function getPendingLoginPath() {
+  return join(homedir(), '.ahub', 'pending-login.json');
+}
+
+function savePendingLogin(data) {
+  writeFileSync(getPendingLoginPath(), JSON.stringify(data, null, 2), 'utf8');
+}
+
+function clearPendingLogin() {
+  try {
+    unlinkSync(getPendingLoginPath());
+  } catch {}
+}
+`;
+
+const VISIT_AUTH_URL = "process.stderr.write(`If browser didn't open, visit:\\n${authUrl.toString()}\\n\\n`);";
+const VISIT_SIGNIN_URL = "process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);";
+
+const LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);",
+	"  openBrowser(authUrl.toString());",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${authUrl.toString()}\\n\\n`);",
+	"  process.stderr.write('Waiting for login...\\n');",
+	"",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
+const PATCHED_LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"",
+	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
+	"",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);",
+	"  openBrowser(buildAlphaSignInUrl(authUrl.toString()));",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);",
+	"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
+	"  process.stderr.write('Use email sign-in on that page, not Google. Google login skips the CLI OAuth redirect.\\n');",
+	"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
+	"",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
+const COMPACT_LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);",
+	"  openBrowser(authUrl.toString());",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${authUrl.toString()}\\n\\n`);",
+	"  process.stderr.write('Waiting for login...\\n');",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
+const PATCHED_COMPACT_LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);",
+	"  openBrowser(buildAlphaSignInUrl(authUrl.toString()));",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);",
+	"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
+	"  process.stderr.write('Use email sign-in on that page, not Google. Google login skips the CLI OAuth redirect.\\n');",
+	"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
+const LEGACY_LOGIN_WAIT_BLOCK = [
+	"  process.stderr.write('Opening browser for alphaXiv login...\\n');",
+	"  openBrowser(authUrl.toString());",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${authUrl.toString()}\\n\\n`);",
+	"  process.stderr.write('Waiting for login...\\n');",
+	"",
+	"  const code = await waitForCallback(server);",
+].join("\n");
 
 export function patchAlphaHubAuthSource(source) {
 	let patched = source;
@@ -60,6 +161,116 @@ export function patchAlphaHubAuthSource(source) {
 	}
 	if (patched.includes(OPEN_BROWSER_LOG)) {
 		patched = patched.replace(OPEN_BROWSER_LOG, OPEN_BROWSER_LOG_WITH_URL);
+	}
+	if (patched.includes(FS_IMPORT) && !patched.includes("unlinkSync")) {
+		patched = patched.replace(FS_IMPORT, FS_IMPORT_WITH_UNLINK);
+	}
+	if (!patched.includes("function savePendingLogin(data)") || !patched.includes("function buildAlphaSignInUrl(authUrl)")) {
+		let helpers = "";
+		if (!patched.includes("function savePendingLogin(data)")) {
+			helpers += PENDING_LOGIN_HELPERS;
+		}
+		if (!patched.includes("function buildAlphaSignInUrl(authUrl)")) {
+			helpers += OAUTH_BROWSER_HELPERS;
+		}
+		patched = patched.replace("export async function login() {", `${helpers}\nexport async function login() {`);
+	}
+	if (patched.includes(PATCHED_LOGIN_WAIT_BLOCK)) {
+		// already patched
+	} else if (patched.includes(PATCHED_COMPACT_LOGIN_WAIT_BLOCK)) {
+		// already patched
+	} else if (patched.includes(LOGIN_WAIT_BLOCK)) {
+		patched = patched.replace(LOGIN_WAIT_BLOCK, PATCHED_LOGIN_WAIT_BLOCK);
+	} else if (patched.includes(COMPACT_LOGIN_WAIT_BLOCK)) {
+		patched = patched.replace(COMPACT_LOGIN_WAIT_BLOCK, PATCHED_COMPACT_LOGIN_WAIT_BLOCK);
+	} else if (patched.includes(LEGACY_LOGIN_WAIT_BLOCK)) {
+		const legacyBlock = [
+			"  const server = await startCallbackServer();",
+			"",
+			LEGACY_LOGIN_WAIT_BLOCK,
+		].join("\n");
+		patched = patched.replace(legacyBlock, PATCHED_LOGIN_WAIT_BLOCK);
+	}
+	if (!patched.includes("clearPendingLogin();")) {
+		const loginSuccessTail = [
+			[
+				"  saveAuth({",
+				"    client_id: clientId,",
+				"    access_token: tokens.access_token,",
+				"    refresh_token: tokens.refresh_token,",
+				"    expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,",
+				"    user_id: userInfo?.sub || null,",
+				"    user_name: userInfo?.name || userInfo?.preferred_username || null,",
+				"    user_email: userInfo?.email || null,",
+				"  });",
+				"",
+				"  return { tokens, userInfo };",
+			].join("\n"),
+			[
+				"  saveAuth({",
+				"    client_id: clientId,",
+				"    access_token: tokens.access_token,",
+				"    refresh_token: tokens.refresh_token,",
+				"    expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,",
+				"    user_id: userInfo?.sub || null,",
+				"    user_name: userInfo?.name || userInfo?.preferred_username || null,",
+				"    user_email: userInfo?.email || null,",
+				"  });",
+				"  return { tokens, userInfo };",
+			].join("\n"),
+		];
+		const loginSuccessReplacement = [
+			[
+				"  saveAuth({",
+				"    client_id: clientId,",
+				"    access_token: tokens.access_token,",
+				"    refresh_token: tokens.refresh_token,",
+				"    expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,",
+				"    user_id: userInfo?.sub || null,",
+				"    user_name: userInfo?.name || userInfo?.preferred_username || null,",
+				"    user_email: userInfo?.email || null,",
+				"  });",
+				"",
+				"  clearPendingLogin();",
+				"",
+				"  return { tokens, userInfo };",
+			].join("\n"),
+			[
+				"  saveAuth({",
+				"    client_id: clientId,",
+				"    access_token: tokens.access_token,",
+				"    refresh_token: tokens.refresh_token,",
+				"    expires_at: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,",
+				"    user_id: userInfo?.sub || null,",
+				"    user_name: userInfo?.name || userInfo?.preferred_username || null,",
+				"    user_email: userInfo?.email || null,",
+				"  });",
+				"  clearPendingLogin();",
+				"  return { tokens, userInfo };",
+			].join("\n"),
+		];
+		for (let index = 0; index < loginSuccessTail.length; index += 1) {
+			if (patched.includes(loginSuccessTail[index])) {
+				patched = patched.replace(loginSuccessTail[index], loginSuccessReplacement[index]);
+				break;
+			}
+		}
+	}
+
+	if (patched.includes(AUTH_URL_LOG)) {
+		patched = patched.replaceAll(AUTH_URL_LOG, SIGNIN_URL_LOG);
+	}
+	if (patched.includes(VISIT_AUTH_URL)) {
+		patched = patched.replaceAll(VISIT_AUTH_URL, VISIT_SIGNIN_URL);
+	}
+	if (patched.includes(OPEN_BROWSER_AUTH_URL)) {
+		patched = patched.replaceAll(OPEN_BROWSER_AUTH_URL, OPEN_BROWSER_SIGNIN_URL);
+	}
+	if (patched.includes("Login timed out after 120 seconds")) {
+		patched = patched.replace("Login timed out after 120 seconds", "Login timed out after 10 minutes");
+	}
+	if (patched.includes(", 120000);")) {
+		patched = patched.replace(", 120000);", ", 600000);");
 	}
 
 	return patched;

@@ -1,5 +1,7 @@
 node_modules
 .env
+.pi/
+.playwright-mcp/
 .feynman/npm
 .feynman/git
 .feynman/sessions

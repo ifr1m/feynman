@@ -132,6 +132,9 @@ export const cliCommandSections = [
 		title: "AlphaXiv",
 		commands: [
 			{ usage: "feynman alpha login", description: "Sign in to alphaXiv." },
+			{ usage: "feynman alpha retry", description: "Re-open the saved OAuth URL when login stalls after sign-in." },
+			{ usage: "feynman alpha consent", description: "Open the OAuth consent page after Google sign-in dumps you on the homepage." },
+			{ usage: "feynman alpha complete <callback-url-or-code>", description: "Finish login manually from a localhost callback URL or auth code." },
 			{ usage: "feynman alpha logout", description: "Clear alphaXiv auth." },
 			{ usage: "feynman alpha status", description: "Check alphaXiv auth status." },
 			{ usage: 'feynman alpha search "query"', description: "Search papers through Feynman's bundled alphaXiv client." },

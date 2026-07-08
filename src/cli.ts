@@ -19,6 +19,7 @@ import {
 	login as loginAlpha,
 	logout as logoutAlpha,
 } from "@companion-ai/alpha-hub/lib";
+import { finishPendingLogin, reopenPendingAuthUrl, reopenPendingConsentUrl } from "./alpha/login.js";
 import { createAgentSession, SessionManager, SettingsManager, type AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 
 import { syncBundledAssets } from "./bootstrap/sync.js";
@@ -206,9 +207,36 @@ export async function runBundledAlphaCli(appRoot: string, args: string[], option
 	});
 }
 
-async function handleAlphaCommand(action: string | undefined): Promise<void> {
+async function handleAlphaCommand(action: string | undefined, args: string[] = []): Promise<void> {
 	if (action === "login") {
 		const result = await loginAlpha();
+		const name =
+			result.userInfo &&
+			typeof result.userInfo === "object" &&
+			"name" in result.userInfo &&
+			typeof result.userInfo.name === "string"
+				? result.userInfo.name
+				: getAlphaUserName();
+		console.log(name ? `alphaXiv login complete: ${name}` : "alphaXiv login complete");
+		return;
+	}
+
+	if (action === "retry") {
+		reopenPendingAuthUrl();
+		return;
+	}
+
+	if (action === "consent") {
+		reopenPendingConsentUrl();
+		return;
+	}
+
+	if (action === "complete") {
+		const callbackInput = args.join(" ").trim();
+		if (!callbackInput) {
+			throw new Error("Usage: feynman alpha complete <callback-url-or-code>");
+		}
+		const result = await finishPendingLogin(callbackInput);
 		const name =
 			result.userInfo &&
 			typeof result.userInfo === "object" &&
@@ -1034,6 +1062,19 @@ async function runMain(input: { here: string; appRoot: string; feynmanVersion: s
 	}
 
 	if (command === "alpha") {
+		const [action, ...alphaRest] = rest;
+		if (
+			!action ||
+			action === "login" ||
+			action === "logout" ||
+			action === "status" ||
+			action === "retry" ||
+			action === "consent" ||
+			action === "complete"
+		) {
+			await handleAlphaCommand(action, alphaRest);
+			return;
+		}
 		await runBundledAlphaCli(appRoot, rest, { cwd: workingDir });
 		return;
 	}
