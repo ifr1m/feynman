@@ -21,6 +21,10 @@ const allowedOversizedFiles = new Map([
 		"src/cli.ts",
 		"Existing CLI dispatcher. Split command handlers into src/commands/ before growing CLI behavior.",
 	],
+	[
+		"extensions/web/index.ts",
+		"Bundled kdriver-cli web tool extension. Split action handlers before growing surface.",
+	],
 ]);
 
 const domainRoots = [

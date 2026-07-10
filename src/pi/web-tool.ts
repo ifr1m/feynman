@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { resolveExecutable } from "../system/executables.js";
 
@@ -10,11 +11,15 @@ export type WebToolStatus = {
 	runtime: string;
 };
 
+export function resolveFeynmanAppRoot(): string {
+	return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+}
+
 export function getWebExtensionPath(appRoot: string): string {
 	return resolve(appRoot, "extensions", "web", "index.ts");
 }
 
-export function getWebToolStatus(appRoot: string): WebToolStatus {
+export function getWebToolStatus(appRoot: string = resolveFeynmanAppRoot()): WebToolStatus {
 	const extensionPath = getWebExtensionPath(appRoot);
 	return {
 		extensionPath,

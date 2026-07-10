@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, relative, resolve, sep } from "node:path";
 
-import { getPiWebAccessStatus } from "../pi/web-access.js";
+import { formatWebToolDoctorLines, getWebToolStatus, resolveFeynmanAppRoot } from "../pi/web-tool.js";
 import { listWorkbenchCloudExportTargets } from "./cloud-export-targets.js";
 import { getWorkbenchDataRoot, migratedWorkbenchDataPath } from "./data-root.js";
 import type { WorkbenchMemoryRecord, WorkbenchNoteRecord } from "./memory.js";
@@ -635,8 +635,27 @@ function buildComputeResources(compute: WorkbenchComputeProvider[], settings: Wo
 	];
 }
 
-function buildNetworkResources(settings: WorkbenchSettings): WorkbenchResource[] {
-	const webStatus = getPiWebAccessStatus();
+function buildBundledWebToolResource(appRoot: string): WorkbenchResource {
+	const webStatus = getWebToolStatus(appRoot);
+	const doctorLines = formatWebToolDoctorLines(webStatus);
+	return {
+		id: "connector-web-tool",
+		name: "web",
+		description: "Bundled browser-backed search and page navigation exposed as the Pi `web` tool.",
+		status: webStatus.extensionExists ? (webStatus.kdriverReady ? "configured" : "available") : "disabled",
+		source: "Feynman extension",
+		connectorKind: "extension",
+		section: "Bundled extensions",
+		path: toPosixPath(relative(appRoot, webStatus.extensionPath)),
+		detail: `extensions/web | kdriver-cli ${webStatus.kdriverReady ? "ready" : "missing"} | runtime ${webStatus.runtime}`,
+		diagnostics: doctorLines.map((line) => line.replace(/^  /, "")),
+		tags: ["extension", "web", "search", "browser"],
+	};
+}
+
+function buildNetworkResources(settings: WorkbenchSettings, appRoot: string): WorkbenchResource[] {
+	const webStatus = getWebToolStatus(appRoot);
+	const doctorLines = formatWebToolDoctorLines(webStatus);
 	const allowedDomains = settings.allowedDomains.map((domain) => ({
 		id: normalizeResourceId(`allowed-domain-${domain.id}`),
 		name: domain.domain,
@@ -651,21 +670,16 @@ function buildNetworkResources(settings: WorkbenchSettings): WorkbenchResource[]
 	} satisfies WorkbenchResource));
 	return [
 		{
-			id: "network-pi-web-access",
-			name: "Pi web access",
-			description: webStatus.note,
-			status: webStatus.configExists ? "configured" : "available",
-			source: "pi-web-access",
+			id: "network-web-tool",
+			name: "Web tool",
+			description: "Browser-backed search and page navigation via extensions/web and kdriver-cli.",
+			status: webStatus.extensionExists ? (webStatus.kdriverReady ? "configured" : "available") : "available",
+			source: "extensions/web",
 			section: "Runtime policy",
-			path: webStatus.configPath,
-			detail: `search ${webStatus.routeLabel}; request ${webStatus.requestProvider}; workflow ${webStatus.workflow}`,
-			diagnostics: [
-				`Perplexity API: ${webStatus.perplexityConfigured ? "configured" : "not configured"}.`,
-				`Exa API: ${webStatus.exaConfigured ? "configured" : "not configured"}.`,
-				`Gemini API: ${webStatus.geminiApiConfigured ? "configured" : "not configured"}.`,
-				`Gemini browser fallback: ${webStatus.geminiBrowserEnabled ? "enabled" : "disabled"}.`,
-			],
-			tags: ["search", "web", webStatus.routeLabel.toLowerCase()],
+			path: webStatus.extensionPath,
+			detail: `kdriver-cli ${webStatus.kdriverReady ? "ready" : "missing"}; runtime ${webStatus.runtime}`,
+			diagnostics: doctorLines.map((line) => line.replace(/^  /, "")),
+			tags: ["search", "web", "browser"],
 		},
 		scienceDomainResource("package-management", "Package management", "npm, pip, conda, CRAN, Bioconductor, GitHub", ["packages", "reproducibility"]),
 			scienceDomainResource("literature-citations", "Literature & citations", "PubMed search/metadata/ID conversion/related articles/citation matching, Europe PMC full-text sections, OpenAlex, arXiv, bioRxiv, medRxiv, Crossref, DOI, DataCite", ["papers", "citations"]),
@@ -1053,6 +1067,7 @@ export function buildWorkbenchSettingsResourceGroups(options: {
 	workingDir: string;
 }): WorkbenchResourceGroup[] {
 	const { artifacts, changelog, checks, compute, execution, memories, notes, plans, workingDir } = options;
+	const appRoot = resolveFeynmanAppRoot();
 	const settings = readWorkbenchSettings(workingDir);
 	const claudeScienceReferenceResources = includeClaudeScienceReferenceResources()
 		? buildClaudeScienceReferenceResources(readClaudeScienceInstall())
@@ -1060,9 +1075,11 @@ export function buildWorkbenchSettingsResourceGroups(options: {
 	const packageConnectors = buildConnectorResources(workingDir);
 	const customConnectors = buildCustomConnectorResources(settings, workingDir);
 	const feynmanBioTools = buildFeynmanBioToolsResource();
+	const bundledWebTool = buildBundledWebToolResource(appRoot);
 	const connectors = [
 		feynmanBioTools,
-		...buildScienceConnectorCatalogResources([...packageConnectors, ...customConnectors, feynmanBioTools]),
+		bundledWebTool,
+		...buildScienceConnectorCatalogResources([bundledWebTool, ...packageConnectors, ...customConnectors, feynmanBioTools]),
 		...packageConnectors,
 		...customConnectors,
 	];
@@ -1105,7 +1122,7 @@ export function buildWorkbenchSettingsResourceGroups(options: {
 			id: "network",
 			title: "Network",
 			description: "Science-domain access, web-search routing, and the current local network policy.",
-			resources: buildNetworkResources(settings),
+			resources: buildNetworkResources(settings, appRoot),
 		},
 		{
 			id: "permissions",

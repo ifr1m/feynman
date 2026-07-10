@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
@@ -624,7 +624,11 @@ function pruneStaleBundledPackageLinks(
 			continue;
 		}
 
-		rmSync(packagePath, { force: true });
+		if (lstatSync(packagePath).isSymbolicLink()) {
+			unlinkSync(packagePath);
+		} else {
+			rmSync(packagePath, { force: true });
+		}
 		removeEmptyScopeDirectory(packagePath, packageName, globalNodeModulesRoot);
 	}
 }

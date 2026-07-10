@@ -22,21 +22,9 @@ test("workbench connector resources expose package state and lifecycle metadata"
 		mkdirSync(join(root, ".feynman"), { recursive: true });
 		writeFileSync(join(root, ".feynman", "settings.json"), JSON.stringify({
 			packages: [
-				"npm:pi-web-access",
-				{
-					source: "npm:pi-docparser",
-					skills: [],
-				},
+				"npm:pi-docparser",
 			],
 		}, null, 2));
-		writePackage(root, "pi-web-access", {
-			version: "0.13.0",
-			description: "Web search, URL fetching, and PDF extraction for Pi.",
-			pi: {
-				extensions: ["./index.ts"],
-				skills: ["./skills"],
-			},
-		});
 		writePackage(root, "pi-docparser", {
 			version: "3.0.1",
 			description: "Document parsing for local PDFs.",
@@ -48,25 +36,26 @@ test("workbench connector resources expose package state and lifecycle metadata"
 
 		const state = buildWorkbenchState({ workingDir: root });
 		const connectors = state.resources.find((group) => group.id === "connectors")?.resources ?? [];
-		const webAccess = connectors.find((resource) => resource.name === "pi-web-access");
 		const docparser = connectors.find((resource) => resource.name === "pi-docparser");
+		const webTool = connectors.find((resource) => resource.name === "web");
 		const alphaHub = connectors.find((resource) => resource.name === "alpha-hub");
 		const memory = connectors.find((resource) => resource.name === "pi-memory");
 
-		assert.equal(webAccess?.status, "configured");
-		assert.equal(webAccess?.source, "Pi core package");
-		assert.equal(webAccess?.packageAction, "disable");
-		assert.deepEqual(webAccess?.packageSources, ["npm:pi-web-access"]);
-		assert.match(webAccess?.detail ?? "", /v0\.13\.0/);
-		assert.match(webAccess?.detail ?? "", /1 extensions, 1 skills/);
-		assert.ok(webAccess?.tags.includes("installed"), "expected installed package tag");
-		assert.ok(webAccess?.diagnostics?.some((item) => item.includes(".feynman/settings.json")), "expected project config diagnostic");
-		assert.ok(webAccess?.diagnostics?.some((item) => item.includes(".feynman/npm/node_modules/pi-web-access")), "expected install path diagnostic");
-		assert.ok(webAccess?.diagnostics?.some((item) => item.includes("project trust gates loading")), "expected Pi trust boundary diagnostic");
-
 		assert.equal(docparser?.status, "configured");
-		assert.match(docparser?.detail ?? "", /filters: skills:\[\]/);
-		assert.ok(docparser?.diagnostics?.some((item) => item.includes("Active filters: skills:[]")), "expected filter diagnostic");
+		assert.equal(docparser?.source, "Pi core package");
+		assert.equal(docparser?.packageAction, "disable");
+		assert.deepEqual(docparser?.packageSources, ["npm:pi-docparser"]);
+		assert.match(docparser?.detail ?? "", /v3\.0\.1/);
+		assert.match(docparser?.detail ?? "", /1 extensions, 1 skills/);
+		assert.ok(docparser?.tags.includes("installed"), "expected installed package tag");
+		assert.ok(docparser?.diagnostics?.some((item) => item.includes(".feynman/settings.json")), "expected project config diagnostic");
+		assert.ok(docparser?.diagnostics?.some((item) => item.includes(".feynman/npm/node_modules/pi-docparser")), "expected install path diagnostic");
+		assert.ok(docparser?.diagnostics?.some((item) => item.includes("project trust gates loading")), "expected Pi trust boundary diagnostic");
+
+		assert.equal(webTool?.status, "configured");
+		assert.equal(webTool?.source, "Feynman extension");
+		assert.match(webTool?.detail ?? "", /extensions\/web/);
+		assert.ok(webTool?.tags.includes("web"), "expected bundled web tool tag");
 
 		assert.equal(alphaHub?.status, "disabled");
 		assert.equal(alphaHub?.packageAction, "enable");
@@ -87,16 +76,16 @@ test("workbench package setting updates enable and disable project package sourc
 		mkdirSync(join(root, ".feynman"), { recursive: true });
 		const settingsPath = join(root, ".feynman", "settings.json");
 		writeFileSync(settingsPath, JSON.stringify({
-			packages: ["npm:pi-web-access", { source: "npm:pi-docparser", skills: [] }],
+			packages: ["npm:pi-docparser", "npm:@samfp/pi-memory"],
 		}, null, 2));
 
-		updateWorkbenchPackageSettings(root, "disable", ["npm:pi-web-access"]);
-		assert.deepEqual(JSON.parse(readFileSync(settingsPath, "utf8")).packages, [{ source: "npm:pi-docparser", skills: [] }]);
+		updateWorkbenchPackageSettings(root, "disable", ["npm:pi-docparser"]);
+		assert.deepEqual(JSON.parse(readFileSync(settingsPath, "utf8")).packages, ["npm:@samfp/pi-memory"]);
 
-		updateWorkbenchPackageSettings(root, "enable", ["npm:@samfp/pi-memory"]);
+		updateWorkbenchPackageSettings(root, "enable", ["npm:pi-btw"]);
 		assert.deepEqual(JSON.parse(readFileSync(settingsPath, "utf8")).packages, [
-			{ source: "npm:pi-docparser", skills: [] },
 			"npm:@samfp/pi-memory",
+			"npm:pi-btw",
 		]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });

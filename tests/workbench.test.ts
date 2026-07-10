@@ -84,7 +84,7 @@ function makeWorkspace(): string {
 	].join("\n"));
 	writeFileSync(join(root, "extensions", "research-tools.ts"), "export default function researchTools() {}\n");
 	writeFileSync(join(root, ".feynman", "settings.json"), JSON.stringify({
-		packages: ["npm:pi-web-access", "npm:pi-docparser"],
+		packages: ["npm:pi-docparser"],
 	}, null, 2));
 	return root;
 }
@@ -178,8 +178,9 @@ test("buildWorkbenchState groups research artifacts into runs", () => {
 		assert.ok(state.resources.find((group) => group.id === "specialists")?.resources.some((resource) => resource.name === "researcher"), "expected discovered specialist");
 		assert.ok(state.resources.find((group) => group.id === "skills")?.resources.some((resource) => resource.name === "literature-review"), "expected discovered skill");
 		assert.ok(state.resources.find((group) => group.id === "skills")?.resources.some((resource) => resource.command === "/lit" && resource.section === "Prompt templates"), "expected discovered prompt template");
-		assert.ok(state.resources.find((group) => group.id === "connectors")?.resources.some((resource) => resource.name === "pi-web-access"), "expected discovered Pi package");
+		assert.ok(state.resources.find((group) => group.id === "connectors")?.resources.some((resource) => resource.name === "web"), "expected bundled web tool connector");
 		assert.ok(state.resources.find((group) => group.id === "connectors")?.resources.some((resource) => resource.name === "research-tools"), "expected discovered extension");
+		assert.ok(state.resources.find((group) => group.id === "network")?.resources.some((resource) => resource.name === "Web tool"), "expected bundled web tool network resource");
 		assert.ok(state.resources.find((group) => group.id === "compute")?.resources.some((resource) => resource.name === "Pi Research Agents"), "expected compute resource");
 		assert.deepEqual(state.resources.map((group) => group.id), ["skills", "connectors", "specialists", "memory", "compute", "network", "permissions", "credentials", "storage", "usage", "general"]);
 		assert.ok(state.resources.find((group) => group.id === "network")?.resources.some((resource) => resource.name === "Literature & citations"), "expected science network presets");
