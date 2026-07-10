@@ -650,7 +650,7 @@ export type WorkbenchResource = {
 	description: string;
 	status: WorkbenchResourceStatus;
 	source: string;
-	connectorKind?: "custom" | "directory" | "featured" | "organization" | "package";
+	connectorKind?: "custom" | "directory" | "extension" | "featured" | "organization" | "package";
 	section?: string;
 	path?: string;
 	command?: string;

@@ -128,6 +128,9 @@ test("resolveAlphaPassthroughArgs preserves alpha flags after leading cwd", () =
 		args: ["search", "--mode", "keyword", "sparse"],
 		cwd: "/tmp/project",
 	});
+	assert.equal(resolveAlphaPassthroughArgs(["alpha", "status"], "/caller"), undefined);
+	assert.equal(resolveAlphaPassthroughArgs(["alpha", "complete", "http://127.0.0.1:9876/callback?code=abc"], "/caller"), undefined);
+	assert.equal(resolveAlphaPassthroughArgs(["alpha", "login"], "/caller"), undefined);
 	assert.equal(resolveAlphaPassthroughArgs(["--cwd"], "/caller"), undefined);
 	assert.equal(resolveAlphaPassthroughArgs(["--model", "openai/gpt-5", "alpha"], "/caller"), undefined);
 });

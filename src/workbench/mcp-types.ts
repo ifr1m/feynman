@@ -1,4 +1,4 @@
-export type WorkbenchMcpConnectorKind = "custom" | "directory" | "featured" | "organization" | "package";
+export type WorkbenchMcpConnectorKind = "custom" | "directory" | "extension" | "featured" | "organization" | "package";
 export type WorkbenchMcpResourceStatus = "available" | "configured" | "disabled" | "read-only";
 
 export type WorkbenchDirectoryAttachment = {

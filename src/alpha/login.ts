@@ -4,8 +4,9 @@ import { homedir, platform } from "node:os";
 import { join } from "node:path";
 
 const REDIRECT_URI = "http://127.0.0.1:9876/callback";
-const TOKEN_ENDPOINT = "https://clerk.alphaxiv.org/oauth/token";
-const USERINFO_ENDPOINT = "https://clerk.alphaxiv.org/oauth/userinfo";
+const AUTH_ISSUER = "https://api.alphaxiv.org/auth";
+const TOKEN_ENDPOINT = `${AUTH_ISSUER}/oauth2/token`;
+const USERINFO_ENDPOINT = `${AUTH_ISSUER}/oauth2/userinfo`;
 
 type PendingLogin = {
 	clientId: string;
@@ -46,17 +47,13 @@ function clearPendingLogin(): void {
 }
 
 export function buildOAuthContinueUrl(authUrl: string): string {
-	const source = new URL(authUrl);
-	const cont = new URL("https://clerk.alphaxiv.org/oauth/authorize/continue");
-	for (const [key, value] of source.searchParams.entries()) {
-		cont.searchParams.set(key, value);
-	}
-	return cont.toString();
+	// Better Auth has no Clerk-style /authorize/continue; reopen the authorize URL.
+	return authUrl;
 }
 
 export function buildOAuthConsentUrl(authUrl: string): string {
 	const source = new URL(authUrl);
-	const consent = new URL("https://accounts.alphaxiv.org/oauth-consent");
+	const consent = new URL("https://www.alphaxiv.org/oauth/consent");
 	for (const [key, value] of source.searchParams.entries()) {
 		consent.searchParams.set(key, value);
 	}
@@ -64,9 +61,33 @@ export function buildOAuthConsentUrl(authUrl: string): string {
 }
 
 export function buildOAuthSignInUrl(authUrl: string): string {
+	const source = new URL(authUrl);
 	const signIn = new URL("https://www.alphaxiv.org/signin");
-	signIn.searchParams.set("redirect_url", buildOAuthConsentUrl(authUrl));
+	signIn.searchParams.set("flow", `/oauth/consent${source.search}`);
 	return signIn.toString();
+}
+
+export async function resolveOAuthStartUrl(authUrl: string): Promise<string> {
+	try {
+		const res = await fetch(authUrl, {
+			redirect: "manual",
+			headers: { Accept: "application/json", "user-agent": "feynman" },
+		});
+		const location = res.headers.get("location");
+		if (location) {
+			return new URL(location, authUrl).toString();
+		}
+		const contentType = res.headers.get("content-type") || "";
+		if (contentType.includes("application/json")) {
+			const data = (await res.json()) as { url?: unknown };
+			if (typeof data.url === "string" && data.url) {
+				return data.url;
+			}
+		}
+	} catch {
+		// fall through to unsigned flow= sign-in URL
+	}
+	return buildOAuthSignInUrl(authUrl);
 }
 
 export function parseAuthorizationCode(input: string): string {
@@ -109,24 +130,23 @@ export function reopenPendingConsentUrl(): string {
 	if (!pending?.authUrl) {
 		throw new Error("No pending alphaXiv login. Run `feynman alpha login` first and keep it waiting.");
 	}
-	const continueUrl = buildOAuthContinueUrl(pending.authUrl);
-	console.error("Paste this in the SAME browser tab where you signed in with Google:");
-	console.error(continueUrl);
-	console.error("Do not open accounts.alphaxiv.org/oauth-consent directly; Cloudflare blocks it cold.");
-	openBrowser(continueUrl);
-	return continueUrl;
+	const consentUrl = buildOAuthConsentUrl(pending.authUrl);
+	console.error("Opening alphaXiv OAuth consent:");
+	console.error(consentUrl);
+	openBrowser(consentUrl);
+	return consentUrl;
 }
 
-export function reopenPendingAuthUrl(): string {
+export async function reopenPendingAuthUrl(): Promise<string> {
 	const pending = readPendingLogin();
 	if (!pending?.authUrl) {
 		throw new Error("No pending alphaXiv login. Run `feynman alpha login` first and keep it waiting.");
 	}
-	const signInUrl = buildOAuthSignInUrl(pending.authUrl);
-	console.error(`Re-opening alphaXiv sign-in:\n${signInUrl}`);
+	const startUrl = await resolveOAuthStartUrl(pending.authUrl);
+	console.error(`Re-opening alphaXiv sign-in:\n${startUrl}`);
 	console.error(`If already signed in, run: feynman alpha consent`);
-	openBrowser(signInUrl);
-	return signInUrl;
+	openBrowser(startUrl);
+	return startUrl;
 }
 
 export async function finishPendingLogin(callbackInput: string): Promise<{ userInfo: Record<string, unknown> | null }> {

@@ -159,12 +159,20 @@ type AlphaPassthroughArgs = {
 	cwd: string;
 };
 
+const FEYNMAN_ALPHA_COMMANDS = new Set(["login", "logout", "status", "retry", "consent", "complete"]);
+
 export function resolveAlphaPassthroughArgs(rawArgs: string[], defaultCwd = process.cwd()): AlphaPassthroughArgs | undefined {
 	let cwd = defaultCwd;
 	for (let index = 0; index < rawArgs.length; index += 1) {
 		const arg = rawArgs[index];
 		if (arg === "alpha") {
-			return { args: rawArgs.slice(index + 1), cwd };
+			const args = rawArgs.slice(index + 1);
+			const action = args[0];
+			// Keep Feynman-owned auth helpers in-process; only passthrough search/get/ask/etc.
+			if (!action || FEYNMAN_ALPHA_COMMANDS.has(action)) {
+				return undefined;
+			}
+			return { args, cwd };
 		}
 		if (arg === "--cwd") {
 			const next = rawArgs[index + 1];
@@ -222,7 +230,7 @@ async function handleAlphaCommand(action: string | undefined, args: string[] = [
 	}
 
 	if (action === "retry") {
-		reopenPendingAuthUrl();
+		await reopenPendingAuthUrl();
 		return;
 	}
 

@@ -43,7 +43,7 @@ const FIXED_WIN_OPEN = "else if (plat === 'win32') execSync(`cmd /c start \"\" \
 const OAUTH_BROWSER_HELPERS = `
 function buildAlphaConsentUrl(authUrl) {
   const source = new URL(authUrl);
-  const consent = new URL('https://accounts.alphaxiv.org/oauth-consent');
+  const consent = new URL('https://www.alphaxiv.org/oauth/consent');
   for (const [key, value] of source.searchParams.entries()) {
     consent.searchParams.set(key, value);
   }
@@ -51,17 +51,64 @@ function buildAlphaConsentUrl(authUrl) {
 }
 
 function buildAlphaSignInUrl(authUrl) {
+  const source = new URL(authUrl);
   const signIn = new URL('https://www.alphaxiv.org/signin');
-  signIn.searchParams.set('redirect_url', buildAlphaConsentUrl(authUrl));
+  signIn.searchParams.set('flow', \`/oauth/consent\${source.search}\`);
   return signIn.toString();
+}
+
+async function resolveAlphaOAuthStartUrl(authUrl) {
+  try {
+    const res = await fetch(authUrl, {
+      redirect: 'manual',
+      headers: { Accept: 'application/json', 'user-agent': 'feynman-alpha-hub' },
+    });
+    const location = res.headers.get('location');
+    if (location) return new URL(location, authUrl).toString();
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      if (data && typeof data.url === 'string' && data.url) return data.url;
+    }
+  } catch {}
+  return buildAlphaSignInUrl(authUrl);
 }
 `;
 
+const LEGACY_CLERK_AUTH_CONSTANTS = [
+	"const CLERK_ISSUER = 'https://clerk.alphaxiv.org';",
+	"const AUTH_ENDPOINT = `${CLERK_ISSUER}/oauth/authorize`;",
+	"const TOKEN_ENDPOINT = `${CLERK_ISSUER}/oauth/token`;",
+	"const REGISTER_ENDPOINT = `${CLERK_ISSUER}/oauth/register`;",
+	"const CALLBACK_PORT = 9876;",
+	"const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;",
+	"const USERINFO_ENDPOINT = `${CLERK_ISSUER}/oauth/userinfo`;",
+	"const SCOPES = 'profile email offline_access';",
+].join("\n");
+
+const BETTER_AUTH_CONSTANTS = [
+	"const CLERK_ISSUER = 'https://api.alphaxiv.org/auth';",
+	"const AUTH_ENDPOINT = `${CLERK_ISSUER}/oauth2/authorize`;",
+	"const TOKEN_ENDPOINT = `${CLERK_ISSUER}/oauth2/token`;",
+	"const REGISTER_ENDPOINT = `${CLERK_ISSUER}/oauth2/register`;",
+	"const CALLBACK_PORT = 9876;",
+	"const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;",
+	"const USERINFO_ENDPOINT = `${CLERK_ISSUER}/oauth2/userinfo`;",
+	"const SCOPES = 'openid profile email offline_access';",
+].join("\n");
+
+const LEGACY_ACCOUNTS_CONSENT = "https://accounts.alphaxiv.org/oauth-consent";
+const BETTER_AUTH_CONSENT = "https://www.alphaxiv.org/oauth/consent";
+
+const LEGACY_REDIRECT_URL_SIGNIN = "signIn.searchParams.set('redirect_url', buildAlphaConsentUrl(authUrl));";
+
 const OPEN_BROWSER_AUTH_URL = "openBrowser(authUrl.toString());";
 const OPEN_BROWSER_SIGNIN_URL = "openBrowser(buildAlphaSignInUrl(authUrl.toString()));";
+const OPEN_BROWSER_START_URL = "openBrowser(startUrl);";
 
 const AUTH_URL_LOG = "process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);";
 const SIGNIN_URL_LOG = "process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);";
+const START_URL_LOG = "process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${startUrl}\\n`);";
 
 const OPEN_BROWSER_LOG = "process.stderr.write('Opening browser for alphaXiv login...\\n');";
 const OPEN_BROWSER_LOG_WITH_URL = "process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);";
@@ -87,6 +134,7 @@ function clearPendingLogin() {
 
 const VISIT_AUTH_URL = "process.stderr.write(`If browser didn't open, visit:\\n${authUrl.toString()}\\n\\n`);";
 const VISIT_SIGNIN_URL = "process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);";
+const VISIT_START_URL = "process.stderr.write(`If browser didn't open, visit:\\n${startUrl}\\n\\n`);";
 
 const LOGIN_WAIT_BLOCK = [
 	"  const server = await startCallbackServer();",
@@ -99,7 +147,7 @@ const LOGIN_WAIT_BLOCK = [
 	"  const code = await waitForCallback(server);",
 ].join("\n");
 
-const PATCHED_LOGIN_WAIT_BLOCK = [
+const OLD_PATCHED_LOGIN_WAIT_BLOCK = [
 	"  const server = await startCallbackServer();",
 	"",
 	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
@@ -114,6 +162,22 @@ const PATCHED_LOGIN_WAIT_BLOCK = [
 	"  const code = await waitForCallback(server);",
 ].join("\n");
 
+const PATCHED_LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"",
+	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
+	"",
+	"  const startUrl = await resolveAlphaOAuthStartUrl(authUrl.toString());",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${startUrl}\\n`);",
+	"  openBrowser(startUrl);",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${startUrl}\\n\\n`);",
+	"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
+	"  process.stderr.write('Use email sign-in on that page, then Allow on the consent screen if shown.\\n');",
+	"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
+	"",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
 const COMPACT_LOGIN_WAIT_BLOCK = [
 	"  const server = await startCallbackServer();",
 	"  process.stderr.write(`Opening browser for alphaXiv login...\\nAuth URL: ${authUrl.toString()}\\n`);",
@@ -123,7 +187,7 @@ const COMPACT_LOGIN_WAIT_BLOCK = [
 	"  const code = await waitForCallback(server);",
 ].join("\n");
 
-const PATCHED_COMPACT_LOGIN_WAIT_BLOCK = [
+const OLD_PATCHED_COMPACT_LOGIN_WAIT_BLOCK = [
 	"  const server = await startCallbackServer();",
 	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
 	"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);",
@@ -131,6 +195,19 @@ const PATCHED_COMPACT_LOGIN_WAIT_BLOCK = [
 	"  process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);",
 	"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
 	"  process.stderr.write('Use email sign-in on that page, not Google. Google login skips the CLI OAuth redirect.\\n');",
+	"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
+	"  const code = await waitForCallback(server);",
+].join("\n");
+
+const PATCHED_COMPACT_LOGIN_WAIT_BLOCK = [
+	"  const server = await startCallbackServer();",
+	"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
+	"  const startUrl = await resolveAlphaOAuthStartUrl(authUrl.toString());",
+	"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${startUrl}\\n`);",
+	"  openBrowser(startUrl);",
+	"  process.stderr.write(`If browser didn't open, visit:\\n${startUrl}\\n\\n`);",
+	"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
+	"  process.stderr.write('Use email sign-in on that page, then Allow on the consent screen if shown.\\n');",
 	"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
 	"  const code = await waitForCallback(server);",
 ].join("\n");
@@ -146,6 +223,13 @@ const LEGACY_LOGIN_WAIT_BLOCK = [
 
 export function patchAlphaHubAuthSource(source) {
 	let patched = source;
+
+	if (patched.includes(LEGACY_CLERK_AUTH_CONSTANTS)) {
+		patched = patched.replace(LEGACY_CLERK_AUTH_CONSTANTS, BETTER_AUTH_CONSTANTS);
+	}
+	if (patched.includes(LEGACY_ACCOUNTS_CONSENT)) {
+		patched = patched.replaceAll(LEGACY_ACCOUNTS_CONSENT, BETTER_AUTH_CONSENT);
+	}
 
 	if (patched.includes(LEGACY_SUCCESS_HTML)) {
 		patched = patched.replace(LEGACY_SUCCESS_HTML, FEYNMAN_SUCCESS_HTML);
@@ -165,6 +249,54 @@ export function patchAlphaHubAuthSource(source) {
 	if (patched.includes(FS_IMPORT) && !patched.includes("unlinkSync")) {
 		patched = patched.replace(FS_IMPORT, FS_IMPORT_WITH_UNLINK);
 	}
+	if (patched.includes(LEGACY_REDIRECT_URL_SIGNIN)) {
+		// Better Auth resumes OAuth via ?flow=/oauth/consent..., not Clerk redirect_url.
+		if (!patched.includes("const source = new URL(authUrl);") || patched.includes(LEGACY_REDIRECT_URL_SIGNIN)) {
+			patched = patched.replace(
+				[
+					"function buildAlphaSignInUrl(authUrl) {",
+					"  const signIn = new URL('https://www.alphaxiv.org/signin');",
+					"  signIn.searchParams.set('redirect_url', buildAlphaConsentUrl(authUrl));",
+					"  return signIn.toString();",
+					"}",
+				].join("\n"),
+				[
+					"function buildAlphaSignInUrl(authUrl) {",
+					"  const source = new URL(authUrl);",
+					"  const signIn = new URL('https://www.alphaxiv.org/signin');",
+					"  signIn.searchParams.set('flow', `/oauth/consent${source.search}`);",
+					"  return signIn.toString();",
+					"}",
+				].join("\n"),
+			);
+		}
+	}
+	if (!patched.includes("function resolveAlphaOAuthStartUrl(authUrl)")) {
+		const resolveHelper = `
+async function resolveAlphaOAuthStartUrl(authUrl) {
+  try {
+    const res = await fetch(authUrl, {
+      redirect: 'manual',
+      headers: { Accept: 'application/json', 'user-agent': 'feynman-alpha-hub' },
+    });
+    const location = res.headers.get('location');
+    if (location) return new URL(location, authUrl).toString();
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      if (data && typeof data.url === 'string' && data.url) return data.url;
+    }
+  } catch {}
+  return buildAlphaSignInUrl(authUrl);
+}
+`;
+		if (patched.includes("function buildAlphaSignInUrl(authUrl)")) {
+			patched = patched.replace(
+				"export async function login() {",
+				`${resolveHelper}\nexport async function login() {`,
+			);
+		}
+	}
 	if (!patched.includes("function savePendingLogin(data)") || !patched.includes("function buildAlphaSignInUrl(authUrl)")) {
 		let helpers = "";
 		if (!patched.includes("function savePendingLogin(data)")) {
@@ -175,8 +307,13 @@ export function patchAlphaHubAuthSource(source) {
 		}
 		patched = patched.replace("export async function login() {", `${helpers}\nexport async function login() {`);
 	}
+	if (patched.includes(OLD_PATCHED_LOGIN_WAIT_BLOCK)) {
+		patched = patched.replace(OLD_PATCHED_LOGIN_WAIT_BLOCK, PATCHED_LOGIN_WAIT_BLOCK);
+	} else if (patched.includes(OLD_PATCHED_COMPACT_LOGIN_WAIT_BLOCK)) {
+		patched = patched.replace(OLD_PATCHED_COMPACT_LOGIN_WAIT_BLOCK, PATCHED_COMPACT_LOGIN_WAIT_BLOCK);
+	}
 	if (patched.includes(PATCHED_LOGIN_WAIT_BLOCK)) {
-		// already patched
+		// already patched with Better Auth start URL resolution
 	} else if (patched.includes(PATCHED_COMPACT_LOGIN_WAIT_BLOCK)) {
 		// already patched
 	} else if (patched.includes(LOGIN_WAIT_BLOCK)) {
@@ -257,14 +394,23 @@ export function patchAlphaHubAuthSource(source) {
 		}
 	}
 
-	if (patched.includes(AUTH_URL_LOG)) {
+	if (patched.includes(AUTH_URL_LOG) && !patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
 		patched = patched.replaceAll(AUTH_URL_LOG, SIGNIN_URL_LOG);
 	}
-	if (patched.includes(VISIT_AUTH_URL)) {
+	if (patched.includes(VISIT_AUTH_URL) && !patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
 		patched = patched.replaceAll(VISIT_AUTH_URL, VISIT_SIGNIN_URL);
 	}
-	if (patched.includes(OPEN_BROWSER_AUTH_URL)) {
+	if (patched.includes(OPEN_BROWSER_AUTH_URL) && !patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
 		patched = patched.replaceAll(OPEN_BROWSER_AUTH_URL, OPEN_BROWSER_SIGNIN_URL);
+	}
+	if (patched.includes(SIGNIN_URL_LOG) && patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
+		patched = patched.replaceAll(SIGNIN_URL_LOG, START_URL_LOG);
+	}
+	if (patched.includes(VISIT_SIGNIN_URL) && patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
+		patched = patched.replaceAll(VISIT_SIGNIN_URL, VISIT_START_URL);
+	}
+	if (patched.includes(OPEN_BROWSER_SIGNIN_URL) && patched.includes("const startUrl = await resolveAlphaOAuthStartUrl")) {
+		patched = patched.replaceAll(OPEN_BROWSER_SIGNIN_URL, OPEN_BROWSER_START_URL);
 	}
 	if (patched.includes("Login timed out after 120 seconds")) {
 		patched = patched.replace("Login timed out after 120 seconds", "Login timed out after 10 minutes");

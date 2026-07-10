@@ -24,11 +24,71 @@ test("patchAlphaHubAuthSource fixes browser open logic for WSL and Windows", () 
 });
 
 test("patchAlphaHubAuthSource opens the alphaXiv sign-in URL", () => {
-	const input = "process.stderr.write('Opening browser for alphaXiv login...\\n');";
+	const input = [
+		"function buildAlphaSignInUrl(authUrl) { return authUrl; }",
+		"async function resolveAlphaOAuthStartUrl(authUrl) { return authUrl; }",
+		"export async function login() {",
+		"  const server = await startCallbackServer();",
+		"",
+		"  savePendingLogin({ clientId, verifier, authUrl: authUrl.toString() });",
+		"",
+		"  process.stderr.write(`Opening browser for alphaXiv login...\\nSign-in URL: ${buildAlphaSignInUrl(authUrl.toString())}\\n`);",
+		"  openBrowser(buildAlphaSignInUrl(authUrl.toString()));",
+		"  process.stderr.write(`If browser didn't open, visit:\\n${buildAlphaSignInUrl(authUrl.toString())}\\n\\n`);",
+		"  process.stderr.write('Waiting for localhost callback on http://127.0.0.1:9876/callback ...\\n');",
+		"  process.stderr.write('Use email sign-in on that page, not Google. Google login skips the CLI OAuth redirect.\\n');",
+		"  process.stderr.write('If sign-in stalls: feynman alpha consent | feynman alpha complete <callback-url>\\n');",
+		"",
+		"  const code = await waitForCallback(server);",
+		"}",
+	].join("\n");
 
 	const patched = patchAlphaHubAuthSource(input);
 
-	assert.match(patched, /Sign-in URL: \$\{buildAlphaSignInUrl\(authUrl\.toString\(\)\)\}/);
+	assert.match(patched, /const startUrl = await resolveAlphaOAuthStartUrl\(authUrl\.toString\(\)\)/);
+	assert.match(patched, /Sign-in URL: \$\{startUrl\}/);
+	assert.match(patched, /openBrowser\(startUrl\)/);
+});
+
+test("patchAlphaHubAuthSource migrates Clerk OAuth hosts to Better Auth", () => {
+	const input = [
+		"const CLERK_ISSUER = 'https://clerk.alphaxiv.org';",
+		"const AUTH_ENDPOINT = `${CLERK_ISSUER}/oauth/authorize`;",
+		"const TOKEN_ENDPOINT = `${CLERK_ISSUER}/oauth/token`;",
+		"const REGISTER_ENDPOINT = `${CLERK_ISSUER}/oauth/register`;",
+		"const CALLBACK_PORT = 9876;",
+		"const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;",
+		"const USERINFO_ENDPOINT = `${CLERK_ISSUER}/oauth/userinfo`;",
+		"const SCOPES = 'profile email offline_access';",
+		"const consent = new URL('https://accounts.alphaxiv.org/oauth-consent');",
+	].join("\n");
+
+	const patched = patchAlphaHubAuthSource(input);
+
+	assert.match(patched, /https:\/\/api\.alphaxiv\.org\/auth/);
+	assert.match(patched, /\$\{CLERK_ISSUER\}\/oauth2\/authorize/);
+	assert.match(patched, /\$\{CLERK_ISSUER\}\/oauth2\/register/);
+	assert.match(patched, /openid profile email offline_access/);
+	assert.match(patched, /https:\/\/www\.alphaxiv\.org\/oauth\/consent/);
+	assert.equal(patched.includes("clerk.alphaxiv.org"), false);
+	assert.equal(patched.includes("accounts.alphaxiv.org"), false);
+});
+
+test("patchAlphaHubAuthSource Better Auth migration is idempotent", () => {
+	const input = [
+		"const CLERK_ISSUER = 'https://clerk.alphaxiv.org';",
+		"const AUTH_ENDPOINT = `${CLERK_ISSUER}/oauth/authorize`;",
+		"const TOKEN_ENDPOINT = `${CLERK_ISSUER}/oauth/token`;",
+		"const REGISTER_ENDPOINT = `${CLERK_ISSUER}/oauth/register`;",
+		"const CALLBACK_PORT = 9876;",
+		"const REDIRECT_URI = `http://127.0.0.1:${CALLBACK_PORT}/callback`;",
+		"const USERINFO_ENDPOINT = `${CLERK_ISSUER}/oauth/userinfo`;",
+		"const SCOPES = 'profile email offline_access';",
+	].join("\n");
+
+	const once = patchAlphaHubAuthSource(input);
+	const twice = patchAlphaHubAuthSource(once);
+	assert.equal(twice, once);
 });
 
 test("patchAlphaHubAuthSource is idempotent", () => {
@@ -77,6 +137,7 @@ test("patchAlphaHubAuthSource persists pending login during OAuth", () => {
 
 	assert.match(patched, /function savePendingLogin\(data\)/);
 	assert.match(patched, /savePendingLogin\(\{ clientId, verifier, authUrl: authUrl\.toString\(\) \}\)/);
-	assert.match(patched, /openBrowser\(buildAlphaSignInUrl\(authUrl\.toString\(\)\)\)/);
+	assert.match(patched, /const startUrl = await resolveAlphaOAuthStartUrl\(authUrl\.toString\(\)\)/);
+	assert.match(patched, /openBrowser\(startUrl\)/);
 	assert.match(patched, /clearPendingLogin\(\);[\s\S]*return \{ tokens, userInfo \}/);
 });
